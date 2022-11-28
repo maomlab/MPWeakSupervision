@@ -1,0 +1,48 @@
+__pycache__/
+*.py[cod~]
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+eggs/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.ipynb_checkpoints
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+flycheck_*
+
+# Temporary files
+.\#*
+\#*\#
+*~
+.nfs*
+.DS_Store
+
+# joblib related
+*.joblib
+*.pkl
+*.parquet
+
+# temporary files
+Rplots.pdf
+geckodriver.log
+
+.Rhistory
+
+.ipynb_checkpoints
