@@ -1,10 +1,10 @@
 from setuptools import setup
 
 # import ``__version__`` from code base
-exec(open('MPLearn/version.py').read())
+exec(open('MPWeakSupervision/version.py').read())
 
 setup(
-    name='MPLearn',
+    name='MPWeakSupervision',
     version=__version__,
     description='Weak Supervision For Morphological Profiling',
     author="Matthew O'Meara",
@@ -14,6 +14,7 @@ setup(
         'numpy>=1.12.1',
         'pyarrow>=3.0.0',
         'pandas>=1.2.3',
+        'torch>=1.13.0',
         'scikit-learn>=0.24.1'],
     tests_require=['pytest'],
     url='http://github.com/maomlab/MPWeakSupervision',

@@ -1,58 +1,14 @@
-import numpy as np
-from os.path import isfile
-from os import rename
-import scipy.sparse as sp
-from pickle import load, dump
-import gzip
-import torch
 
-
-def makeLogFile(filename="lossHistory.txt"):
-    if isfile(filename):
-        rename(filename, "lossHistoryOld.txt")
-
-    with open(filename, "w") as text_file:
-        print(
-            "Epoch\tsmoothTr\tsmoTrStd\tmseTr\tmseTrStd\tsmoothVl\tsmoVlStd\tmseVl\tmseVlStd\ttime(s)",
-            file=text_file,
-        )
-    print("Log file created...")
-    return
-
-
-def writeLog(
-    logFile,
-    epoch,
-    lossTr,
-    lTrStd,
-    mseTr,
-    mseTrStd,
-    lossVl,
-    lVlStd,
-    mseVl,
-    mseVlStd,
-    eTime,
-):
-    print(
-        "Epoch:{:04d}\t".format(epoch + 1),
-        "smoothTr:{:.4f}\t".format(lossTr),
-        "mseTr:{:.4f}\t".format(mseTr),
-        "smoothVl:{:.4f}\t".format(lossVl),
-        "mseVl:{:.4f}\t".format(mseVl),
-        "time:{:.4f}".format(eTime),
-    )
-
-    with open(logFile, "a") as text_file:
-        print(
-            "{:04d}\t".format(epoch + 1),
-            "{:.4f}\t".format(lossTr),
-            "{:.4f}\t".format(lTrStd),
-            "{:.4f}\t".format(mseTr),
-            "{:.4f}\t".format(mseTrStd),
-            "{:.4f}\t".format(lossVl),
-            "{:.4f}\t".format(lVlStd),
-            "{:.4f}\t".format(mseVl),
-            "{:.4f}\t".format(mseVlStd),
-            "{:.4f}".format(eTime),
-            file=text_file,
-        )
+def print_parameter_count(model):
+    """
+    https://stackoverflow.com/a/62508086/198401
+    """
+    
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        params = parameter.numel()
+        print(f"{name}\t{params}")
+        total_params += params
+    print(f"Total Trainable Params: {total_params}")
+    return total_params

@@ -21,7 +21,7 @@ from torch.autograd import Variable
 from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.model_selection import train_test_split
 
-from utils import *
+from utils import print_parameter_count
 from dataset import *
 from modules import SmallDeepSet, profile_AttSet, simpling_pooling, transformer
 
@@ -216,100 +216,6 @@ def main():
 
     print(f"loaded training data with shape {X_train.shape} and test data with shape {X_test.shape}")
     
-    #if args.cpu_count == 1:
-    #    data = []
-    #    for data_path in args.data_path:
-    #        data.append(load_plate_data(
-    #            data_path = data_path,
-    #            id_columns = args.id_columns,
-    #            feature_columns = feature_columns,
-    #            response_column = args.response_column,
-    #            normalize = args.normalize))
-    #else:
-    #    map_fn = functools.partial(
-    #        load_plate_data,
-    #        id_columns = args.id_columns,
-    #        feature_columns =  feature_columns,
-    #        response_column = args.response_column,
-    #        normalize = args.normalize)
-    #    with multiprocessing.Pool(args.cpu_count) as p:
-    #        data = p.map(map_fn, iter(args.data_path))
-    #data = pd.concat(data, ignore_index=True)
-
-    
-    #blacklist = [
-    #    "schema",
-    #    "dose_nM",
-    #    "Nuclei_Distance_Centroid_InfectedCells",
-    #    "_Parent_",
-    #    "Location",
-    #    "AreaShape",
-    #    "_Number_Object_Number",
-    #    "_Count",
-    #    "Positive",
-    #    "Negative",
-    #    "row",
-    #    "column",
-    #    "Plate_Name",
-    #    "Condition",
-    #    "Compound",
-    #    "master_plate_id",
-    #    "plate_id",
-    #    "is_control",
-    #    "time_point",
-    #    "Metadata",
-    #    "Image_Count_InfectedCells",
-    #    "ImageNumber",
-    #]
-
-    #feature_list = []
-    #for i in data.columns:
-    #    if not any([j in i for j in blacklist]):
-    #        feature_list.append(i)
-    #
-    # n_input_features = len(feature_list)
-
-    #data[args.response_column] = (data[args.response_column].str.split(" ", expand=True)[0].astype(int))
-    
-
-    #splits = pd.read_csv(args.splits_path, sep="\t")
-    #train_split = splits[splits["split"].isin(args.train_split)][args.id_columns]
-    #train_split.set_index(args.id_columns, inplace=True)
-    #data.set_index(args.id_columns, inplace=True)
-    #train = data.join(train_split)
-    #X_train = train[feature_columns['feature']]
-    #
-    #y_train = train[args.response_column]
-    #
-    #test_split = splits[splits["split"].isin(args.test_split)][args.id_columns]
-    #test_split.set_index(args.id_columns, inplace=True)
-    #test = data.join(test_split)
-    #X_test = test[feature_columns['feature']]
-    #y_test = test[args.response_column]
-    
-    #with open(args.train_idx, "r") as f:
-    #    wellID_train_idx = f.read().splitlines()
-    #
-    #with open(args.test_idx, "r") as f:
-    #    wellID_test_idx = f.read().splitlines()
-    #
-    #train = data[
-    #    data[args.well_column].map(lambda x: x in wellID_train_idx)
-    #]
-    #test = data[
-    #    data[args.well_column].map(lambda x: x in wellID_test_idx)
-    #]
-    #
-    #if args.normalize:
-    #    X_train = data_standardization(train[feature_list])
-    #    X_val = data_standardization(test[feature_list])
-    #else:
-    #    X_train = train[feature_list]
-    #    X_val = test[feature_list]
-    #    
-    #
-    #y_train = train[args.response_column]
-    #y_val = test[args.response_column]
 
     # define model
     if args.model_name == "SmallDeepset":
@@ -319,7 +225,7 @@ def main():
     elif args.model_name == "profile_AttSet":
         model = profile_AttSet(704, pool=args.pool_method, reg=args.prediction_mode == "regression")
     elif args.model_name == "transformer":
-        model = transformer(704, reg=args.prediction_mode == "regression")        
+        model = transformer(704, pool=args.pool_method, reg=args.prediction_mode == "regression")        
     else:
         raise Exception(f"Unrecognized model_name '{args.model_name}'")
 
@@ -330,6 +236,8 @@ def main():
 
     if args.cuda:
         model.cuda(args.device)
+
+    print_parameter_count(model)
 
     # define opt
     if args.optimizer == "Adam":

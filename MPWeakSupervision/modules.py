@@ -119,11 +119,11 @@ class transformer(nn.Module):
     This implements the SetTransformer model https://github.com/juho-lee/set_transformer
 
     """
-    def __init__(self, input_feature, thres=0.5, reg=False):
+    def __init__(self, input_feature, pool="pma", thres=0.5, reg=False):
         super(transformer, self).__init__()
 
         self.input_feature = input_feature
-        self.reg = reg
+        self.pool = pool
         self.thres = thres
         self.reg = reg
         self.L = 80
@@ -137,16 +137,18 @@ class transformer(nn.Module):
             num_decoder_layers = 1,
             dim_feedforward = 256,
             batch_first = True)
-        self.pma = nn.Transformer(
-            d_model = input_feature,
-            nhead = 1,
-            num_encoder_layers = 1,
-            num_decoder_layers = 1,
-            dim_feedforward = 64,
-            batch_first = True)
 
-        self.S = nn.Parameter(torch.Tensor(1, 1, self.input_feature))
-        nn.init.xavier_uniform_(self.S)
+        if self.pool == "pma":
+            self.pool_layer =  nn.Transformer(
+                d_model = input_feature,
+                nhead = 1,
+                num_encoder_layers = 1,
+                num_decoder_layers = 1,
+                dim_feedforward = 64,
+                batch_first = True)
+
+            self.S = nn.Parameter(torch.Tensor(1, 1, self.input_feature))
+            nn.init.xavier_uniform_(self.S)
 
         if self.reg:
             self.regressor = nn.Sequential(nn.Linear(input_feature * self.K, 1))
@@ -155,7 +157,13 @@ class transformer(nn.Module):
 
     def forward(self, x):
         M = self.attention(x, x)
-        pooled = self.pma(M, self.S.repeat(M.size(0), self.K, self.K))
+        if self.pool == "max":
+            pooled = M.max(dim=1)[0]
+        elif self.pool == "mean":
+            pooled = M.mean(dim=1)
+        elif self.pool == "pma":
+            pooled = self.pool_layer(M, self.S.repeat(M.size(0), self.K, self.K))
+            
         if self.reg:
             output = self.regressor(pooled)
             return output.view(-1, 1)
