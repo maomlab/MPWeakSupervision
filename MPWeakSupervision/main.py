@@ -55,26 +55,24 @@ def set_args():
         default=["Plate_Name", "row", "column"],
         help="List of columns used to identify which cells go to which split")
     
-    ##parser.add_argument("--train_idx", type=str, default="../../raw_data/weak_supervision/wellID_train_idx.txt")
-    ##parser.add_argument("--test_idx", type=str, default="../../raw_data/weak_supervision/wellID_test_idx.txt")
-    #parser.add_argument('--normalize', action='store_true', help="Standardize test and train features separately")
-    #parser.add_argument('--no-normalize', dest='normalize', action='store_false')
-    #parser.set_defaults(normalize=True)
-    # model
     parser.add_argument("--pretrained", action="store_true", default=False)
     parser.add_argument("--model_paths", type=str, default="")
 
     parser.add_argument("--model_name", type=str, default="SmallDeepSet")
     parser.add_argument("--pool_method", type=str, default="mean")
+
+    # for set transformer model
+    parser.add_argument("--model_L", type=int, default=None, help="Extract features into L dimensions")
+    parser.add_argument("--model_K", type=int, default=1)
+    
     parser.add_argument("--prediction_mode", type=str, default="regression")
 
-    parser.add_argument("--seed", type=int, default=42, help="Random seed.")
-
-    parser.add_argument("--cuda", action="store_true", help="Use CUDA for training.")
-    parser.add_argument("--no-cuda", action="store_false", dest="cuda")
-    parser.set_defaults(cuda=True)
 
     # training
+    parser.add_argument("--seed", type=int, default=42, help="Random seed.")
+    parser.add_argument("--cuda", action="store_true", help="Use CUDA for training.")
+    parser.add_argument("--no-cuda", action="store_false", dest="cuda")
+    parser.set_defaults(cuda=True)    
     parser.add_argument("--cpu_count", type=int, default=1, help="number of cpus to use for data loading")
     parser.add_argument("--device", type=int, default=0, help="device for cuda")
     parser.add_argument("--epochs", type=int, default=150)
@@ -84,10 +82,11 @@ def set_args():
         "--resample_bags_frequency", type=int, default=5,
         help = "Resample the train and test bags after this many epochs")
     parser.add_argument("--optimizer", type=str, default="Adam")
-    parser.add_argument("--learning_rate_scheduler", type=str, default=None)
     parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--learning_rate_scheduler", type=str, default=None)
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--max_lr", type=float, default=0.1)
+    parser.add_argument("--T_0", type=int, default=10000)    
     parser.add_argument("--weight_decay", type=float, default=0.0)
 
     # artifacts
@@ -214,18 +213,27 @@ def main():
         columns = [args.response_column]).to_pandas()
     y_test = y_test[args.response_column]
 
+    n_input_features = X_train.shape[1]
     print(f"loaded training data with shape {X_train.shape} and test data with shape {X_test.shape}")
     
 
     # define model
     if args.model_name == "SmallDeepset":
-        model = SmallDeepSet(704, pool=args.pool_method, reg=args.prediction_mode == "regression")
+        model = SmallDeepSet(
+            n_input_features=n_input_features, pool=args.pool_method, reg=args.prediction_mode == "regression")
     elif args.model_name == "simple_pooling":
-        model = simple_pooling(704, pool=args.pool_method, reg=args.prediction_mode == "regression")
+        model = simple_pooling(
+            n_input_features=n_input_features, pool=args.pool_method, reg=args.prediction_mode == "regression")
     elif args.model_name == "profile_AttSet":
-        model = profile_AttSet(704, pool=args.pool_method, reg=args.prediction_mode == "regression")
+        model = profile_AttSet(
+            n_input_features=n_input_features, pool=args.pool_method, reg=args.prediction_mode == "regression")
     elif args.model_name == "transformer":
-        model = transformer(704, pool=args.pool_method, reg=args.prediction_mode == "regression")        
+        model = transformer(
+            n_input_features=n_input_features,
+            pool=args.pool_method,
+            L=args.model_L,
+            K=args.model_K,
+            reg=args.prediction_mode == "regression")        
     else:
         raise Exception(f"Unrecognized model_name '{args.model_name}'")
 
@@ -255,11 +263,12 @@ def main():
         scheduler = optim.lr_scheduler.OneCycleLR(
             optimizer = opt,
             max_lr = args.max_lr,
-            total_steps = args.epochs * 1000)
+            pct_start = 0.1,
+            total_steps = args.T_0)
     elif args.learning_rate_scheduler == "ExponentialLR":
         scheduler = optim.lr_scheduler.ExponentialLR(optimizer=opt, gamma = 0.9)
     elif args.learning_rate_scheduler == "CosineAnnealingWarmRestarts":
-        scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer = opt, T_0 = 10)
+        scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer = opt, T_0 = args.T_0)
     else:
         scheduler = None
 
@@ -307,7 +316,7 @@ def main():
                 os.path(args.output_dir,  model_name + ".pth"))
             print("saved trained model")
 
-        wandb.watch(model)
+        #wandb.watch(model)
 
 
 def regression_train(epoch, loader, val_loader, model, opt, scheduler, args):
@@ -325,7 +334,7 @@ def regression_train(epoch, loader, val_loader, model, opt, scheduler, args):
         opt.zero_grad()
         # calculate loss and metrics
         y_prob = model(data)
-        loss = nn.SmoothL1Loss()(y_prob, bag_label)
+        loss = nn.SmoothL1Loss()(y_prob, bag_label/48)
         if (batch_idx % 50 == 0):
             print(f"loss batch index {batch_idx}: {loss.detach().cpu().item()}")
         # backward pass
@@ -336,7 +345,7 @@ def regression_train(epoch, loader, val_loader, model, opt, scheduler, args):
             scheduler.step()
 
         smooth_all.append(loss.detach().cpu().item())
-        mse_all.append(nn.MSELoss()(y_prob, bag_label).detach().cpu().item())
+        mse_all.append(nn.MSELoss()(y_prob*48, bag_label).detach().cpu().item())
 
     smoothVl, mseVl = validation(model, val_loader, args)
 
@@ -352,6 +361,7 @@ def regression_train(epoch, loader, val_loader, model, opt, scheduler, args):
         "train_loss_std" : np.std(smooth_all),
         "train_mse_mean" : np.mean(mse_all),
         "train_mse_std" : np.std(mse_all),
+        "S_norm" : torch.linalg.vector_norm(model.S).detach().cpu().item(),
         "validation_loss_mean" : np.mean(smoothVl),
         "validation_loss_std" : np.std(smoothVl),
         "validation_mse_mean" : np.mean(mseVl),
@@ -364,6 +374,10 @@ def regression_train(epoch, loader, val_loader, model, opt, scheduler, args):
 def validation(model, loader, args):
     smooth_all = []
     mse_all = []
+    log_preds = False
+    if log_preds:
+        pred_vs_label = []
+        
     for batch_idx, (data, bag_label) in enumerate(loader):
         bag_label = bag_label[:, 0].unsqueeze(1)
         if args.cuda:
@@ -374,11 +388,23 @@ def validation(model, loader, args):
         data, bag_label = Variable(data), Variable(bag_label)
         # calculate loss and metrics
         y_prob = model(data)
-        smooth = nn.SmoothL1Loss()(y_prob, bag_label)
+        smooth = nn.SmoothL1Loss()(y_prob, bag_label/48)
         smooth_all.append(smooth.detach().cpu())
-        mse = nn.MSELoss()(y_prob, bag_label).detach().cpu()
+        mse = nn.MSELoss()(y_prob*48, bag_label).detach().cpu()
         mse_all.append(mse)
 
+        if log_preds:
+            pred_vs_label.append((
+                bag_label.detach().cpu().item() + np.random.uniform() * 0.3 - 0.15,
+                y_prob.detach().cpu().item() * 48))
+
+    if log_preds:
+        wandb.log({
+            "pred_vs_label" : wandb.plot.scatter(
+                wandb.Table(data = pred_vs_label, columns = ["time_point", "pred"]),
+                "time_point", "pred")},
+            commit = False)
+            
     return smooth_all, mse_all
 
 
