@@ -11,9 +11,10 @@ import torch.utils.data as D
 from torch.autograd import Variable
 
 
-
 def transform_features(data: pd.DataFrame, transform_info) -> pd.DataFrame:
-    for feature, transform_type in transform_info[['feature', 'transform']].agg(tuple, 1):
+    for feature, transform_type in transform_info[["feature", "transform"]].agg(
+        tuple, 1
+    ):
         if transform_type == "identity":
             continue
         elif transform_type == "log":
@@ -21,16 +22,22 @@ def transform_features(data: pd.DataFrame, transform_info) -> pd.DataFrame:
         elif transform_type == "log1p":
             data[feature] = np.log(data[feature] + 1)
         else:
-            raise Exception(f"Unrecognized transform type '{transform_type}' for feature '{feature}'")
+            raise Exception(
+                f"Unrecognized transform type '{transform_type}' for feature '{feature}'"
+            )
     return data
+
 
 def standardize_features(data: pd.DataFrame, feature_columns=None) -> pd.DataFrame:
     if feature_columns is None:
         return pd.DataFrame(
-            StandardScaler().fit_transform(data), columns=data.columns, index=data.index)
+            StandardScaler().fit_transform(data), columns=data.columns, index=data.index
+        )
     else:
         feature_column_indices = [list(data.columns).index(i) for i in feature_columns]
-        data.values[:, feature_column_indices] = StandardScaler().fit_transform(data[feature_columns])
+        data.values[:, feature_column_indices] = StandardScaler().fit_transform(
+            data[feature_columns]
+        )
         return data
 
 
@@ -63,8 +70,7 @@ def get_bag_cell_idx(image_time_cell, bag_size, level, no_sampling=False):
     return bag_cell_idx
 
 
-
-def make_bags(data, bag_size, group_by = None, sample=True, cpu_count=1):
+def make_bags(data, bag_size, group_by=None, sample=True, cpu_count=1):
     """
     Make bags for training and evaluation of weak supervisation models
 
@@ -81,22 +87,27 @@ def make_bags(data, bag_size, group_by = None, sample=True, cpu_count=1):
 
     @input pandas.DataFrame
     """
+
     def sample_bags(x):
         ids = x.index.to_list()
-    
+
         if bag_size < len(ids):
             # to make even bags, fill the last bag with replacement
-            ids = np.concatenate([
-                ids,
-                np.random.choice(
-                    a = ids,
-                    size = -len(ids) % bag_size, # this is enough to fill the last bag
-                    replace = False)])
-          
+            ids = np.concatenate(
+                [
+                    ids,
+                    np.random.choice(
+                        a=ids,
+                        size=-len(ids)
+                        % bag_size,  # this is enough to fill the last bag
+                        replace=False,
+                    ),
+                ]
+            )
+
             return np.random.choice(
-                a = ids,
-                size = (len(ids) // bag_size, bag_size),
-                replace = False).tolist()
+                a=ids, size=(len(ids) // bag_size, bag_size), replace=False
+            ).tolist()
         elif sample:
             return np.random.choice(ids, size=(1, bag_size), replace=True).tolist()
         else:
@@ -115,14 +126,19 @@ def make_bags(data, bag_size, group_by = None, sample=True, cpu_count=1):
                 bags.extend(sample_bags(cells))
         elif cpu_count > 1:
             with multiprocessing.Pool(cpu_count) as p:
-                bags = p.map(group_fn, [group for name, group in data.groupby(by=group_by)])
+                bags = p.map(
+                    group_fn, [group for name, group in data.groupby(by=group_by)]
+                )
         else:
-            raise Exception(f"Unrecognized cpu_count {cpu_count}, it should be an integer >= 1")
+            raise Exception(
+                f"Unrecognized cpu_count {cpu_count}, it should be an integer >= 1"
+            )
     else:
         bags = sample_bags(data)
     time_end = time.time()
     print(f"make_bags runtime: {round(time_end - time_begin, 2)}")
     return bags
+
 
 # group stratification sampling in sklearn
 # each batch of data, get more different images

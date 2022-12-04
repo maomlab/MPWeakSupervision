@@ -73,11 +73,11 @@ class simpling_pooling(SmallDeepSet):
         return x
 
 
-    
 class profile_AttSet(nn.Module):
     """
     This implements the DeepAttentionMIL model https://github.com/AMLab-Amsterdam/AttentionDeepMIL
     """
+
     def __init__(self, n_input_features, pool="att", thres=0.5, reg=False):
         super(profile_AttSet, self).__init__()
 
@@ -94,9 +94,7 @@ class profile_AttSet(nn.Module):
         )
 
         self.attention = nn.Sequential(
-            nn.Linear(self.L, self.D),
-            nn.Tanh(),
-            nn.Linear(self.D, self.K)
+            nn.Linear(self.L, self.D), nn.Tanh(), nn.Linear(self.D, self.K)
         )
 
         self.classifier = nn.Sequential(nn.Linear(self.L * self.K, 1), nn.Sigmoid())
@@ -142,7 +140,8 @@ class transformer(nn.Module):
     This adapsts the SetTransformer model https://github.com/juho-lee/set_transformer
 
     """
-    def __init__(self, n_input_features, pool="pma", L=80, K = 1, thres=0.5, reg=False):
+
+    def __init__(self, n_input_features, pool="pma", L=80, K=1, thres=0.5, reg=False):
         super(transformer, self).__init__()
 
         self.pool = pool
@@ -163,29 +162,31 @@ class transformer(nn.Module):
             )
 
         self.attention = nn.Transformer(
-            d_model = self.L,
-            nhead = 4,
-            num_encoder_layers = 3,
-            num_decoder_layers = 1,
-            dim_feedforward = self.D,
-            #activation = "gelu",
-            #dropout = 0,
-            #layer_norm_eps = 1e-2,            
-            batch_first = True,
-            norm_first = True)
+            d_model=self.L,
+            nhead=4,
+            num_encoder_layers=3,
+            num_decoder_layers=1,
+            dim_feedforward=self.D,
+            # activation = "gelu",
+            # dropout = 0,
+            # layer_norm_eps = 1e-2,
+            batch_first=True,
+            norm_first=True,
+        )
 
         if self.pool == "pma":
-            self.pool_layer =  nn.Transformer(
-                d_model = self.L,
-                nhead = 1,
-                num_encoder_layers = 1,
-                num_decoder_layers = 1,
-                dim_feedforward = 64,                
-                #activation = "gelu",
-                #dropout = 0,                
-                #layer_norm_eps = 1e-3,
-                batch_first = True,
-                norm_first = True)
+            self.pool_layer = nn.Transformer(
+                d_model=self.L,
+                nhead=1,
+                num_encoder_layers=1,
+                num_decoder_layers=1,
+                dim_feedforward=64,
+                # activation = "gelu",
+                # dropout = 0,
+                # layer_norm_eps = 1e-3,
+                batch_first=True,
+                norm_first=True,
+            )
 
             self.S = nn.Parameter(torch.Tensor(1, self.K, self.L))
             nn.init.xavier_uniform_(self.S)
@@ -208,7 +209,7 @@ class transformer(nn.Module):
             pooled = M.mean(dim=1)
         elif self.pool == "pma":
             pooled = self.pool_layer(M, self.S.repeat(M.size(0), 1, 1))
-            
+
         if self.reg:
             output = self.regressor(pooled.view(M.size(0), -1))
             return output.view(-1, 1)
@@ -216,7 +217,4 @@ class transformer(nn.Module):
             Y_prob = self.classifier(pooled)
             Y_prob = Y_prob.squeeze(2)
             Y_hat = torch.ge(Y_prob, self.thres).float()
-            return Y_prob, Y_hat  # , A            
-
-
-    
+            return Y_prob, Y_hat  # , A
